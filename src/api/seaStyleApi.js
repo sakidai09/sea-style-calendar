@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = "https://sea-style-m.yamaha-motor.co.jp";
+export const DEFAULT_BASE_URL = "https://sea-style-m.yamaha-motor.co.jp";
 
 const DEFAULT_STRATEGIES = [attemptJsonApi, attemptAjaxHtml];
 const DEFAULT_MARINA_DIRECTORY_STRATEGIES = [
@@ -6,12 +6,14 @@ const DEFAULT_MARINA_DIRECTORY_STRATEGIES = [
   attemptMarinaDirectoryAlternate,
 ];
 
-const STATUS_LABELS = {
+const STATUS_LABELS = Object.freeze({
   vacant: "空きあり",
   few: "残りわずか",
   full: "満席",
   unknown: "状況不明",
-};
+});
+
+export const AVAILABILITY_STATUS_LABELS = STATUS_LABELS;
 
 export class SeaStyleApi {
   constructor(options = {}) {

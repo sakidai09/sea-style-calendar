@@ -1,14 +1,14 @@
-import { SeaStyleApi } from "./api/seaStyleApi.js";
+import {
+  SeaStyleApi,
+  DEFAULT_BASE_URL,
+  AVAILABILITY_STATUS_LABELS,
+} from "./api/seaStyleApi.js";
 import { createMonthOptions, enumerateMonthDays } from "./utils/date.js";
 
-const apiClient = new SeaStyleApi();
+let apiClient = null;
+let apiConfiguration = null;
 
-const STATUS_LABELS = {
-  vacant: "空き",
-  few: "残りわずか",
-  full: "満席",
-  unknown: "不明",
-};
+const STATUS_LABELS = AVAILABILITY_STATUS_LABELS;
 
 const DEFAULT_MARINA_NAME = "勝どきマリーナ";
 const FALLBACK_MARINAS = [
@@ -46,6 +46,9 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
+  apiConfiguration = resolveApiConfiguration();
+  apiClient = new SeaStyleApi({ baseUrl: apiConfiguration.baseUrl });
+
   const submitButton = form.querySelector("button[type=submit]");
   const marinaSearch = createMarinaSearch({
     input: marinaNameInput,
@@ -64,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     monthSelect.value = initialMonth;
   }
 
-  updateStatus(statusPanel, statusMessage, "マリーナ名と月を選択して「表示する」を押してください。");
+  updateStatus(statusPanel, statusMessage, createInitialStatusMessage(apiConfiguration));
 
   let initialSearchPending = true;
   const scheduleInitialSearch = () => {
@@ -93,16 +96,17 @@ document.addEventListener("DOMContentLoaded", () => {
     initialName: initialMarinaName,
     defaultName: DEFAULT_MARINA_NAME,
   })
-    .then(({ usedFallback, selection }) => {
+    .then(({ usedFallback, selection, error: directoryError }) => {
       if (usedFallback) {
+        const hint = createProxyHint(apiConfiguration, directoryError);
         updateStatus(
           statusPanel,
           statusMessage,
-          "マリーナ一覧の取得に失敗したため、候補が限定されています。",
+          `マリーナ一覧の取得に失敗したため、候補が限定されています。${hint}`,
           "warning",
         );
       } else {
-        updateStatus(statusPanel, statusMessage, "マリーナ名と月を選択して「表示する」を押してください。");
+        updateStatus(statusPanel, statusMessage, createInitialStatusMessage(apiConfiguration));
       }
       if (!selection && initialMarinaCode && !marinaCodeInput.value) {
         marinaCodeInput.value = initialMarinaCode;
@@ -261,7 +265,8 @@ async function fetchMonthAvailability({ marinaCode, monthId, signal, onProgress 
       if (error.name === "AbortError") {
         throw error;
       }
-      result = { error };
+      const wrappedError = wrapNetworkError(error);
+      result = { error: wrappedError };
     }
 
     results.push({ day, result });
@@ -445,12 +450,14 @@ function formatDebugPayload(payload) {
 async function initializeMarinaDirectory({ searchController, initialCode, initialName, defaultName }) {
   let directoryResult = null;
   let usedFallback = false;
+  let lastError = null;
 
   try {
     directoryResult = await apiClient.fetchMarinaDirectory();
   } catch (error) {
-    console.warn("マリーナ一覧の取得に失敗しました", error);
+    console.warn("マリーナ一覧の取得に失敗しました", error?.message || error);
     usedFallback = true;
+    lastError = error;
   }
 
   const marinas = Array.isArray(directoryResult?.marinas) && directoryResult.marinas.length > 0
@@ -487,7 +494,114 @@ async function initializeMarinaDirectory({ searchController, initialCode, initia
     selection,
     entries: searchController.getEntries(),
     raw: directoryResult?.raw ?? null,
+    error: lastError,
   };
+}
+
+function wrapNetworkError(error) {
+  if (!error) {
+    return error;
+  }
+  if (error.name === "AbortError") {
+    return error;
+  }
+  if (!isLikelyNetworkError(error)) {
+    return error;
+  }
+  const friendlyMessage = createNetworkErrorMessage(apiConfiguration);
+  const wrapped = new Error(friendlyMessage);
+  wrapped.name = error.name || "NetworkError";
+  wrapped.cause = error;
+  return wrapped;
+}
+
+function isLikelyNetworkError(error) {
+  if (!error) {
+    return false;
+  }
+  const message = String(error.message || error).toLowerCase();
+  return message.includes("failed to fetch") || message.includes("networkerror") || message.includes("load failed") || message.includes("cors");
+}
+
+function createNetworkErrorMessage(config) {
+  if (config && !config.usingDefault) {
+    return `${config.baseUrl} への接続に失敗しました。ネットワーク接続やプロキシ設定を確認してください。`;
+  }
+  return "ネットワークまたは CORS の制約により取得できませんでした。README の「プロキシサーバー」の手順に従ってローカルプロキシを設定し、URL に ?apiBase=... を指定してください。";
+}
+
+function resolveApiConfiguration() {
+  const params = new URLSearchParams(window.location.search);
+  const paramBase = (params.get("apiBase") || params.get("proxyOrigin") || "").trim();
+  const sources = [];
+
+  if (paramBase) {
+    sources.push({ value: paramBase, source: "URL パラメータ" });
+  }
+
+  const globalBase = typeof window !== "undefined" && window.__SEA_STYLE_API_BASE_URL__;
+  if (typeof globalBase === "string" && globalBase.trim()) {
+    sources.push({ value: globalBase.trim(), source: "window.__SEA_STYLE_API_BASE_URL__" });
+  }
+
+  const configBase =
+    typeof window !== "undefined" &&
+    window.__SEA_STYLE_CONFIG__ &&
+    typeof window.__SEA_STYLE_CONFIG__.apiBaseUrl === "string"
+      ? window.__SEA_STYLE_CONFIG__.apiBaseUrl.trim()
+      : "";
+  if (configBase) {
+    sources.push({ value: configBase, source: "window.__SEA_STYLE_CONFIG__.apiBaseUrl" });
+  }
+
+  const datasetBase = document.documentElement?.dataset?.seaStyleApiBase;
+  if (datasetBase) {
+    sources.push({ value: datasetBase, source: "document.documentElement.dataset.seaStyleApiBase" });
+  }
+
+  const metaBase = document.querySelector('meta[name="sea-style-api-base"]')?.content?.trim();
+  if (metaBase) {
+    sources.push({ value: metaBase, source: 'meta[name="sea-style-api-base"]' });
+  }
+
+  const resolved = sources.find((entry) => entry.value);
+  const baseUrl = resolved?.value || DEFAULT_BASE_URL;
+
+  return {
+    baseUrl,
+    source: resolved?.source || "デフォルト設定",
+    usingDefault: !resolved,
+  };
+}
+
+function createInitialStatusMessage(config) {
+  const base = "マリーナ名と月を選択して「表示する」を押してください。";
+  if (!config) {
+    return base;
+  }
+  if (config.usingDefault) {
+    const hint =
+      "ヒント: ローカル環境で取得に失敗する場合は README の「プロキシサーバー」の手順でローカルプロキシを設定し、URL に ?apiBase=プロキシURL を付与してください。";
+    return `${base}\n\n${hint}`;
+  }
+  return `${base}\n\nAPI ベース URL: ${config.baseUrl} (${config.source})`;
+}
+
+function createProxyHint(config, error) {
+  if (!config) {
+    return "";
+  }
+  const hints = [];
+  if (!config.usingDefault) {
+    hints.push(`API ベース URL: ${config.baseUrl} (${config.source})`);
+  }
+  if (config.usingDefault && isLikelyNetworkError(error)) {
+    hints.push("ヒント: README の「プロキシサーバー」の手順を参考にローカルプロキシを起動し、?apiBase=プロキシURL を指定してください。");
+  }
+  if (hints.length === 0) {
+    return "";
+  }
+  return `\n${hints.join("\n")}`;
 }
 
 function createMarinaSearch({ input, hiddenInput, suggestions }) {
