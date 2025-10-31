@@ -6,12 +6,14 @@ const DEFAULT_MARINA_DIRECTORY_STRATEGIES = [
   attemptMarinaDirectoryAlternate,
 ];
 
-const STATUS_LABELS = {
+const STATUS_LABELS = Object.freeze({
   vacant: "空きあり",
   few: "残りわずか",
   full: "満席",
   unknown: "状況不明",
-};
+});
+
+export const AVAILABILITY_STATUS_LABELS = STATUS_LABELS;
 
 export class SeaStyleApi {
   constructor(options = {}) {

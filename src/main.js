@@ -1,15 +1,14 @@
-import { SeaStyleApi, DEFAULT_BASE_URL } from "./api/seaStyleApi.js";
+import {
+  SeaStyleApi,
+  DEFAULT_BASE_URL,
+  AVAILABILITY_STATUS_LABELS,
+} from "./api/seaStyleApi.js";
 import { createMonthOptions, enumerateMonthDays } from "./utils/date.js";
 
 let apiClient = null;
 let apiConfiguration = null;
 
-const STATUS_LABELS = {
-  vacant: "空き",
-  few: "残りわずか",
-  full: "満席",
-  unknown: "不明",
-};
+const STATUS_LABELS = AVAILABILITY_STATUS_LABELS;
 
 const DEFAULT_MARINA_NAME = "勝どきマリーナ";
 const FALLBACK_MARINAS = [
