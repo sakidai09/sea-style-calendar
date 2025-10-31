@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SEA-STYLE クラブ艇空き情報まとめ</title>
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1 class="page-title">SEA-STYLE クラブ艇空き情報まとめ</h1>
+      <p class="page-description">
+        ヤマハマリンクラブ・シースタイルの「クラブ艇空き情報」を日付ごとにまとめて表示します。月の切り替えとマリーナの選択が可能です。
+      </p>
+    </header>
+
+    <main class="page-main" id="app" aria-live="polite"></main>
+
+    <template id="app-template">
+      <section class="control-panel">
+        <form id="search-form" class="search-form" novalidate>
+          <fieldset class="field-group">
+            <legend>検索条件</legend>
+            <div class="field field--autocomplete">
+              <label class="field__label" for="marina-name-input">マリーナ名</label>
+              <div class="autocomplete">
+                <input
+                  id="marina-name-input"
+                  name="marinaName"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="例: 勝どきマリーナ"
+                  class="field__input"
+                  aria-autocomplete="list"
+                  aria-expanded="false"
+                  aria-controls="marina-suggestions"
+                />
+                <input id="marina-code-input" name="marinaCode" type="hidden" />
+                <div
+                  id="marina-suggestions"
+                  class="autocomplete__suggestions"
+                  role="listbox"
+                  hidden
+                  aria-label="マリーナ候補"
+                ></div>
+              </div>
+              <p class="field__hint">マリーナ名の一部を入力すると候補が表示されます。</p>
+            </div>
+            <div class="field">
+              <label class="field__label" for="month-select">表示月</label>
+              <select id="month-select" name="targetMonth" class="field__select"></select>
+            </div>
+          </fieldset>
+          <div class="search-form__actions">
+            <button type="submit" class="button">表示する</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="status-panel" id="status-panel" hidden>
+        <div class="status-panel__inner" id="status-message"></div>
+      </section>
+
+      <section class="results" id="results" hidden aria-live="polite"></section>
+    </template>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
