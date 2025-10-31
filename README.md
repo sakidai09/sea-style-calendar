@@ -51,6 +51,41 @@ Sea-Style の本番ドメインは CORS を許可していないため、ブラ�
 
 `?apiBase=` パラメーターを指定する代わりに、`window.__SEA_STYLE_API_BASE_URL__` グローバル変数や `<meta name="sea-style-api-base">` を利用してベース URL を設定することも可能です。
 
+## GitHub から最新の変更を取り込む
+
+リポジトリにリモートが設定されていない場合でも、`scripts/update-from-github.sh` を使うと GitHub 上の任意のリポジトリから最新の変更を取り込めます。ネットワーク接続と GitHub へのアクセス権がある環境で、以下のように実行してください。
+
+```bash
+# 例: openai/sea-style-calendar リポジトリの main ブランチを取得する場合
+scripts/update-from-github.sh openai/sea-style-calendar main
+```
+
+スクリプトは `upstream` というリモートを追加（または更新）し、指定したブランチをフェッチして現在のブランチを高速進行（fast-forward）で同期します。fast-forward ができない場合はマージが必要となるため、出力に従って手動で解決してください。
+
+GitHub への直接アクセスが制限されている環境では、`--base-url` オプションまたは `GITHUB_BASE_URL` 環境変数でミラーを指定できます。また、`--remote-name` や `--branch` オプションを使ってリモート名や対象ブランチを切り替えることも可能です。
+
+それでも `git fetch` が失敗する場合は、GitHub (またはミラー) が提供するアーカイブ (`https://github.com/<owner>/<repo>/archive/refs/heads/<branch>.tar.gz` 形式) をダウンロードし、環境変数 `SEA_STYLE_ARCHIVE` にローカルパスを指定してスクリプトを実行すると、アーカイブの内容が作業ツリーに展開されます。
+
+```bash
+# 例: アーカイブを自分でダウンロード済みの場合
+curl -L -o /tmp/sea-style-calendar.tar.gz \
+  https://github.com/openai/sea-style-calendar/archive/refs/heads/main.tar.gz
+SEA_STYLE_ARCHIVE=/tmp/sea-style-calendar.tar.gz \
+  scripts/update-from-github.sh openai/sea-style-calendar main
+```
+
+アーカイブ展開時は `.git/` ディレクトリを除いて上書きするため、既存ファイルは最新状態に置き換えられます。`git status` で差分を確認し、必要に応じてコミットしてください。
+
+```bash
+# 例: hub.fastgit.org ミラー経由で remote 名を mirror に変更する
+scripts/update-from-github.sh \
+  --base-url https://hub.fastgit.org \
+  --remote-name mirror \
+  openai/sea-style-calendar main
+```
+
+ミラーでも取得できない場合は、利用可能なプロキシ設定を確認するか、GitHub へ到達できるネットワークで同期を実行して成果物を持ち込む方法をご検討ください。
+
 ## ローカルプレビューの例
 
 Python の簡易サーバーを使用した場合は、以下のようにアクセスできます。
